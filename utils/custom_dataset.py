@@ -1,41 +1,89 @@
 from torch.utils.data import Dataset
-from transformers import AutoFeatureExtractor
+from transformers.models.seamless_m4t.feature_extraction_seamless_m4t import SeamlessM4TFeatureExtractor
 from transformers.models.encodec.feature_extraction_encodec import EncodecFeatureExtractor
+
+import torch
+from dataclasses import dataclass
+from typing import Dict, List, Union, Any
+
+import pandas as pd
+import torchaudio
 
 class CustomDataset(Dataset):
     def __init__(
         self,
-        data_dir: str,
-        codec_pretrained_path: str = "facebook/encodec_24khz",
-        semantic_pretrained_path: str = "facebook/w2v-bert-2.0"
+        anot_path: str,
+        wavs_path: str,
+        shuffle: bool = True
     ):
         super().__init__()
-        self.codec_processor = EncodecFeatureExtractor.from_pretrained(codec_pretrained_path)
-        self.semantic_processor = AutoFeatureExtractor.from_pretrained(semantic_pretrained_path)
-        self._init_data(data_dir)
-
-    def _init_data(self, data_dir):
-        pass
+        self.anot = pd.read_csv(anot_path)
+        if shuffle:
+            self.anot = self.anot.sample(frac=1).reset_index(drop=True)
+        self.wavs_path = wavs_path
 
     def __len__(self):
         return len(self.anot)
 
     def __getitem__(self, idx):
+
         sample = self.anot.iloc[idx]
-        fn = sample.filename
 
-        input_ids = self.tokenizer(str(sample.label), return_tensors='pt', padding='max_length', truncation=True, max_length=self.max_seq_len)
+        label = torch.tensor(int(sample.emotion[-1]))
 
-        img_path = "augmented_images/" + fn
-        if fn[:4] == "wild":
-            img_path = "WildLine/" + fn
-        if fn[:5] == "digit":
-            img_path = "digits/" + fn
-        if fn[:6] == "single":
-            img_path = "single_digit/" + fn
+        fn = sample.file.replace("/path_to_wavs/", self.wavs_path)
+        waveform, sampling_rate = torchaudio.load(fn)
 
-        # return {
-        #     "pixel_values":    pixel_values[0],
-        #     "input_ids":   input_ids["input_ids"][0],
-        #     "att_mask":     input_ids["attention_mask"][0]
-        # }
+        waveform_16k = torchaudio.functional.resample(waveform, orig_freq=sampling_rate, new_freq=16000)
+
+        waveform_24k = torchaudio.functional.resample(waveform, orig_freq=sampling_rate, new_freq=24000)
+
+        return {
+            "waveform_16k": waveform_16k, # torch.Tensor
+            "waveform_24k": waveform_24k, # torch.Tensor
+            "label": label # torch.Tensor
+        }
+
+
+@dataclass
+class DataCollatorForSER:
+    codec_processor: EncodecFeatureExtractor = EncodecFeatureExtractor.from_pretrained("facebook/encodec_24khz")
+    semantic_processor: SeamlessM4TFeatureExtractor = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0")
+
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        batch = {}
+
+        # Handle input_features (semantic)
+        waveforms_16k = [feature["waveform_16k"].numpy()[0] for feature in features]
+        semantic_inputs = self.semantic_processor(waveforms_16k, sampling_rate=16000, return_tensors="pt")
+        batch.update(**semantic_inputs)
+
+        # Handle input_values (acoustic/codec)
+        waveforms_24k = [feature["waveform_24k"].numpy()[0] for feature in features]
+        codec_inputs = self.codec_processor(waveforms_24k, sampling_rate=24000, return_tensors="pt")
+        batch.update(**codec_inputs)
+
+        # Handle labels
+        if "label" in features[0].keys():
+            batch["labels"] = torch.tensor([f["label"] for f in features], dtype=torch.long)
+
+        return batch
+    
+def collate_fn(features: List[Dict[str, Any]], codec_processor: EncodecFeatureExtractor, semantic_processor: SeamlessM4TFeatureExtractor) -> Dict[str, torch.Tensor]:
+        batch = {}
+
+        # Handle input_features (semantic)
+        waveforms_16k = [feature["waveform_16k"].numpy()[0] for feature in features]
+        semantic_inputs = semantic_processor(waveforms_16k, sampling_rate=16000, return_tensors="pt")
+        batch.update(**semantic_inputs)
+
+        # Handle input_values (acoustic/codec)
+        waveforms_24k = [feature["waveform_24k"].numpy()[0] for feature in features]
+        codec_inputs = codec_processor(waveforms_24k, sampling_rate=24000, return_tensors="pt")
+        batch.update(**codec_inputs)
+
+        # Handle labels
+        if "label" in features[0].keys():
+            batch["labels"] = torch.tensor([f["label"] for f in features], dtype=torch.long)
+
+        return batch

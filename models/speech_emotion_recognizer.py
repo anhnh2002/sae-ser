@@ -58,6 +58,7 @@ class SER(PreTrainedModel):
         input_features: torch.Tensor,
         padding_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        return_dict: Optional[bool] = None,
         labels: Optional[torch.Tensor] = None,
         **kwargs
     ):
@@ -78,5 +79,8 @@ class SER(PreTrainedModel):
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
+
+        if not return_dict:
+            return (loss, logits) if loss is not None else logits
 
         return SEROutput(logits=logits, loss=loss)
