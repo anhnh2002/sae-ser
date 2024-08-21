@@ -9,6 +9,7 @@ class SemanticEncoder(nn.Module):
         freeze_semantic: bool = False,
         **kwargs
     ):
+        super().__init__()
         self.semantic_bb = Wav2Vec2BertModel.from_pretrained(semantic_pretrained_path)
         config = self.semantic_bb.config
         self.projector = nn.Linear(config.hidden_size, intermidiate_size)

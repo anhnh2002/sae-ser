@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from transformers.modeling_utils import PreTrainedModel
-from codec_encoder import CodecEncoder
-from semantic_encoder import SemanticEncoder
+from models.codec_encoder import CodecEncoder
+from models.semantic_encoder import SemanticEncoder
 from typing import Optional
 import torch.nn.functional as F
 import json
@@ -17,13 +17,13 @@ class SER(PreTrainedModel):
         self,
         config: SERConfig
     ):
-        super(SER, self).__init__(config)
+        super().__init__(config)
 
         self.config = config
 
-        self.semantic_encoder = SemanticEncoder(**self.config)
+        self.semantic_encoder = SemanticEncoder(**self.config.__dict__)
 
-        self.codec_encoder = CodecEncoder(**self.config)
+        self.codec_encoder = CodecEncoder(**self.config.__dict__)
 
         if self.config.merge_strategy == "concat":
             self.projector = nn.Linear(self.config.intermidiate_size*2, self.config.intermidiate_size*2)

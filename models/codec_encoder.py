@@ -89,6 +89,7 @@ class CodecEncoder(nn.Module):
         freeze_codec: bool = True,
         **kwargs
     ):
+        super().__init__()
         self.codec_bb = EncodecEncoderQuantizer.from_pretrained(codec_pretrained_path)
 
         self.hidden_size = self.codec_bb.config.hidden_size

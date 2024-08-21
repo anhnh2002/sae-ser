@@ -12,7 +12,7 @@ class SERConfig(PretrainedConfig):
 
     def __init__(
         self,
-        num_labels: int,
+        num_labels: int = 4,
         codec_pretrained_path: str = "facebook/encodec_24khz",
         freeze_codec: bool = True,
         semantic_pretrained_path: str = "facebook/w2v-bert-2.0",
@@ -22,7 +22,8 @@ class SERConfig(PretrainedConfig):
         dropout: float = 0.2,
         **kwargs,
     ):
-        super(Wav2Vec2BertConfig, self).__init__(num_labels=num_labels, **kwargs)
+        super().__init__(**kwargs)
+        self.num_labels = num_labels
         self.codec_pretrained_path = codec_pretrained_path
         self.freeze_codec = freeze_codec
         self.semantic_pretrained_path = semantic_pretrained_path
