@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from transformers.models.seamless_m4t.feature_extraction_seamless_m4t import SeamlessM4TFeatureExtractor
+from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.encodec.feature_extraction_encodec import EncodecFeatureExtractor
 
 import torch
@@ -38,8 +38,8 @@ class CustomDataset(Dataset):
         # print(f"Loaded data for idx {idx}: waveform_16k size {waveform_16k.size()}, waveform_24k size {waveform_24k.size()}")
 
         return {
-            "input_features": waveform_16k, # torch.Tensor
-            "input_values": waveform_24k, # torch.Tensor
+            "input_features": waveform_16k[0], # torch.Tensor
+            "input_values": waveform_24k[0], # torch.Tensor
             "label": label # torch.Tensor
         }
 
@@ -47,7 +47,7 @@ class CustomDataset(Dataset):
 @dataclass
 class DataCollatorForSER:
     codec_processor: EncodecFeatureExtractor = EncodecFeatureExtractor.from_pretrained("facebook/encodec_24khz")
-    semantic_processor: SeamlessM4TFeatureExtractor = SeamlessM4TFeatureExtractor.from_pretrained("facebook/w2v-bert-2.0")
+    semantic_processor: Wav2Vec2FeatureExtractor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/wav2vec2-base")
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
         batch = {}
@@ -57,12 +57,13 @@ class DataCollatorForSER:
         #     print(feature.keys())
 
         # Handle input_features (semantic)
-        waveforms_16k = [feature["input_features"].numpy()[0] for feature in features]
-        semantic_inputs = self.semantic_processor(waveforms_16k, sampling_rate=16000, return_tensors="pt")
-        batch.update(**semantic_inputs)
+        waveforms_16k = [feature["input_features"].numpy() for feature in features]
+        semantic_inputs = self.semantic_processor(waveforms_16k, sampling_rate=16000, return_tensors="pt", return_attention_mask=True, padding=True)
+        batch["input_features"] = semantic_inputs.input_values
+        batch["attention_mask"] = semantic_inputs.attention_mask
 
         # Handle input_values (acoustic/codec)
-        waveforms_24k = [feature["input_values"].numpy()[0] for feature in features]
+        waveforms_24k = [feature["input_values"].numpy() for feature in features]
         codec_inputs = self.codec_processor(waveforms_24k, sampling_rate=24000, return_tensors="pt")
         batch.update(**codec_inputs)
 

@@ -1,7 +1,7 @@
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
 from transformers.models.encodec.configuration_encodec import EncodecConfig
-from transformers.models.wav2vec2_bert.configuration_wav2vec2_bert import Wav2Vec2BertConfig
+from transformers import Wav2Vec2Config
 
 
 logger = logging.get_logger(__name__)
@@ -15,7 +15,7 @@ class SERConfig(PretrainedConfig):
         num_labels: int = 4,
         codec_pretrained_path: str = "facebook/encodec_24khz",
         freeze_codec: bool = True,
-        semantic_pretrained_path: str = "facebook/w2v-bert-2.0",
+        semantic_pretrained_path: str = "facebook/wav2vec2-base",
         freeze_semantic: bool = False,
         intermidiate_size: int = 512,
         merge_strategy: str = "concat",
@@ -32,6 +32,6 @@ class SERConfig(PretrainedConfig):
         self.merge_strategy = merge_strategy
         self.dropout = dropout
         self.codec_config = EncodecConfig.from_pretrained(codec_pretrained_path)
-        self.semantic_config = Wav2Vec2BertConfig.from_pretrained(semantic_pretrained_path)
+        self.semantic_config = Wav2Vec2Config.from_pretrained(semantic_pretrained_path)
     
     
